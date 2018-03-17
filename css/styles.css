@@ -93,7 +93,8 @@ body {
         stroke-linecap: round;
         position: absolute;
         bottom: 20px;
-        right: 20px; }
+        right: 20px;
+        padding: 20px; }
         body .wrapper .container .loader .loader-circle {
           fill: none;
           stroke-width: 6.5;

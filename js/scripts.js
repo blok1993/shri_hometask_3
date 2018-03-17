@@ -1,26 +1,45 @@
 document.addEventListener("DOMContentLoaded", () => {
 
+    const video  = document.getElementById('video-for-canvas');
+    const w = video.clientWidth;
+    const h = video.clientHeight;
+
+    let canvasM = document.getElementById('canvas-for-video');
+    canvasM.width = w;
+    canvasM.height = h;
+    let ctx = canvasM.getContext('2d');
+
+    let backLayer = document.createElement('canvas');
+    backLayer.width = w;
+    backLayer.height = h;
+    let backCtx = backLayer.getContext('2d');
+
+    let backLayer2 = document.createElement('canvas');
+    backLayer2.width = w;
+    backLayer2.height = h;
+    let backLayer2Ctx = backLayer2.getContext('2d');
+
+    //Инициализация Web Audio Api
+    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let source;
+    let analyser = audioCtx.createAnalyser();
+
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 
     if (navigator.getUserMedia) {
-        const videoElement = document.querySelector('video');
-
-        //Настройки для Web Audio Api
-        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        var source;
-        var analyser = audioCtx.createAnalyser();
-        analyser.minDecibels = -90;
-        analyser.maxDecibels = 30;
-        analyser.smoothingTimeConstant = 0.85;
-        var distortion = audioCtx.createWaveShaper();
-        var gainNode = audioCtx.createGain();
-        var biquadFilter = audioCtx.createBiquadFilter();
-        var convolver = audioCtx.createConvolver();
-
         navigator.getUserMedia({ audio: true, video: true }, (stream) => {
-                videoElement.src = URL.createObjectURL(stream);
+                video.src = URL.createObjectURL(stream);
 
-                //Audio
+                //Настройка Web Audio Api
+                analyser.minDecibels = -90;
+                analyser.maxDecibels = 30;
+                analyser.fftSize = 256;
+
+                let distortion = audioCtx.createWaveShaper();
+                let gainNode = audioCtx.createGain();
+                let biquadFilter = audioCtx.createBiquadFilter();
+                let convolver = audioCtx.createConvolver();
+
                 source = audioCtx.createMediaStreamSource(stream);
                 source.connect(analyser);
                 analyser.connect(distortion);
@@ -29,8 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 convolver.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
 
-                _visualizeContent();
-                _initRandomSymbols();
+                //Визуализация эффектов
+                visualizeContent();
 
             }, (err) => {
                 console.log("Произошла ошибка: " + err.name);
@@ -40,151 +59,98 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("getUserMedia не поддерживается.");
     }
 
-    const video  = document.getElementById('video-for-canvas');
-    const w = video.clientWidth;
-    const h = video.clientHeight;
-
-    let canvasM = document.getElementById('canvas-for-video');
-    canvasM.width = w;
-    canvasM.height = h;
-    let ctx    = canvasM.getContext('2d');
-
-    let back = document.createElement('canvas');
-    back.width = w;
-    back.height = h;
-    let backCtx = back.getContext('2d');
-
-    let back2 = document.createElement('canvas');
-    back2.width = w;
-    back2.height = h;
-    let backCtx2 = back.getContext('2d');
-
     let visualAudioCanvas = document.getElementById('visualizer-volume');
     let canvasVolumeCtx = visualAudioCanvas.getContext("2d");
+    const volumeCanvasWidth = visualAudioCanvas.width;
+    const volumeCanvasHeight = visualAudioCanvas.height;
 
     let visualAudioFreqCanvas = document.getElementById('visualizer-freq');
     let canvasFreqCtx = visualAudioFreqCanvas.getContext("2d");
+    const freqCanvasWidth = visualAudioFreqCanvas.width;
+    const freqCanvasHeight = visualAudioFreqCanvas.height;
 
     let convulsionsFlag = false;
 
+    //Переменные для детекции движения
     const detectMotion = true;
-    let prevImageArray = null;
-    let motionDetectionInterval = 10;
-    //0.05% - пороговая разница в px между изображениями, для идентификации движения.
-    let motionPixelAccuracy = Math.floor(0.0015 * w * h);
+    const motionDetectionInterval = 10;
+    const motionPixelAccuracy = Math.floor(0.0015 * w * h);
+    let motionInProgress = false;
+    let prevImageArray = [];
     let loopCounter = 0;
-    let diffPixels = 0;
 
-    //Content
-    let _visualizeContent = () => {
+    let visualizeContent = () => {
+        backCtx.drawImage(video, 0, 0, w, h);
 
-        var WIDTH = visualAudioCanvas.width;
-        var HEIGHT = visualAudioCanvas.height;
+        //Детекция движения
+        if (detectMotion) {
+            __detectMotion();
+        }
 
-        analyser.fftSize = 256;
+        if (!convulsionsFlag) {
+            //Эффект помех / плохого сигнала
+            __badSignalEffect();
 
-        canvasVolumeCtx.clearRect(0, 0, WIDTH, HEIGHT);
-        canvasFreqCtx.clearRect(0, 0, WIDTH, HEIGHT);
+            //Наложение инфракрасного эффекта
+            ctx.globalCompositeOperation = 'color';
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+            ctx.fillRect(0, 0, w, h);
+        }
 
-        let array =  new Uint8Array(analyser.frequencyBinCount);
+        let uInt8Array =  new Uint8Array(analyser.frequencyBinCount);
 
-        let draw = () => {
+        //Отрисовка звуковых частот (спектрограмма)
+        __frequencyBars(uInt8Array);
 
-            //Детекция движения
-            if (detectMotion) {
-                __detectMotion();
-            }
+        //Отрисовка уровня громкости
+        __volumeLevel(uInt8Array);
 
-            if (!convulsionsFlag) {
-
-                //Эффект помех / плохого сигнала
-                __badSignalEffect();
-
-                //Наложение инфракрасного эффекта
-                ctx.globalCompositeOperation = 'color';
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
-                ctx.fillRect(0, 0, w, h);
-            }
-
-            requestAnimationFrame(draw);
-
-            analyser.getByteFrequencyData(array);
-
-            canvasFreqCtx.fillStyle = 'rgb(53, 53, 53)';
-            canvasFreqCtx.fillRect(0, 0, visualAudioFreqCanvas.width, visualAudioFreqCanvas.height);
-
-            let barWidth = (visualAudioFreqCanvas.width / analyser.frequencyBinCount) * 2.5;
-            let barHeight;
-            let x = 0;
-
-            for (let i = 0; i < analyser.frequencyBinCount; i++) {
-                barHeight = array[i];
-
-                canvasFreqCtx.fillStyle = 'rgb(' + ( barHeight + 150 ) + ', 250, 0)';
-                canvasFreqCtx.fillRect(x, visualAudioFreqCanvas.height - barHeight / 2, barWidth, barHeight / 2);
-
-                x += barWidth + 1;
-            }
-
-            canvasVolumeCtx.clearRect(0, 0, WIDTH, HEIGHT);
-            let average = getVolume(array);
-            let pxVolume = average * 4;
-
-            canvasVolumeCtx.fillStyle = 'rgb(255, 250, 0)';
-            canvasVolumeCtx.fillRect(0,0,pxVolume,HEIGHT);
-
-            //При превышении определенного уровня громкости - наступает эффект контузии на короткое время.
-            if (pxVolume > 200 && !convulsionsFlag) {
-                _gotConvulsions();
-            }
-        };
-
-        draw();
+        requestAnimationFrame(visualizeContent);
     };
 
     let getVolume = (array) => {
         let values = 0;
-        let average;
 
         for (let i = 0; i < array.length; i++) {
             values += array[i];
         }
 
-        average = values / array.length;
-
-        return average;
+        return values / array.length;
     };
 
     let getRandomInt = (min, max) => {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     };
 
-    let _initRandomSymbols = () => {
-        let freq = 1500;
-        let symbols = "@#$%^&*!~0123456789";
-        let stringsNumber = 5;
+    let initRandomSymbols = () => {
+        const freq = 1500;
+        const symbols = "@#$%^&*!~0123456789";
+        const stringsNumber = 5;
+        const spaceIndex = 5;
+        const stringLength = 30;
+
         let localResult = "";
         let divs = [];
 
         let __getRandomSymbols = () => {
-            for (let j = 0; j < stringsNumber; j++) {
-                let div = document.createElement('div');
-                div.classList.add('code-line');
+            setTimeout(() => {
+                for (let j = 0; j < stringsNumber; j++) {
+                    let div = document.createElement('div');
+                    div.classList.add('code-line');
 
-                for (let i = 0; i < 30; i++) {
-                    if (i % 5 === 0) {
-                        localResult += " ";
-                    } else {
-                        localResult += symbols.charAt(Math.floor(Math.random() * symbols.length));
+                    for (let i = 0; i < stringLength; i++) {
+                        if (i % spaceIndex === 0) {
+                            localResult += " ";
+                        } else {
+                            localResult += symbols.charAt(Math.floor(Math.random() * symbols.length));
+                        }
                     }
+
+                    div.innerHTML = localResult;
+                    localResult = "";
+                    divs.push(div);
                 }
 
-                div.innerHTML = localResult;
-                localResult = "";
-                divs.push(div);
-            }
-
-            setTimeout(() => {
                 document.getElementsByClassName("typewriter")[0].innerHTML = "";
 
                 for (let k = 0; k < stringsNumber; k++) {
@@ -200,11 +166,15 @@ document.addEventListener("DOMContentLoaded", () => {
         __getRandomSymbols();
     };
 
+    initRandomSymbols();
+
     let _motionDetected = () => {
-        if (!document.getElementsByClassName('motion-identifier')[0].classList.contains("show")) {
+        if (!motionInProgress) {
+            motionInProgress = true;
             document.getElementsByClassName('motion-identifier')[0].classList.add('show');
 
             setTimeout(() => {
+                motionInProgress = false;
                 document.getElementsByClassName('motion-identifier')[0].classList.remove('show');
             }, 1000);
         }
@@ -226,13 +196,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     let __badSignalEffect = () => {
-        let frequenceOfBlink = 25;
-        let anyNumber = 5;
-        let numberOfBlinkingPictures = 4;
+        const frequenceOfBlink = 25;
+        const anyNumber = 5;
+        const numberOfBlinkingPictures = 4;
 
         if (getRandomInt(0, frequenceOfBlink) === anyNumber) {
-            backCtx2.drawImage(video, 0, 0, w, h);
-            let im2data = backCtx2.getImageData(0, 0, w, h);
+            backLayer2Ctx.drawImage(video, 0, 0, w, h);
+            let im2data = backLayer2Ctx.getImageData(0, 0, w, h);
 
             for (let k = 0; k < numberOfBlinkingPictures; k++) {
                 backCtx.putImageData(im2data, getRandomInt(-w, w), getRandomInt(-h, h));
@@ -243,11 +213,49 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.putImageData(imgData, 0, 0);
     };
 
-    let __detectMotion = () => {
-        loopCounter++;
-        backCtx.drawImage(video, 0, 0, w, h);
+    let __frequencyBars = (arr) => {
+        analyser.getByteFrequencyData(arr);
 
-        if (prevImageArray && loopCounter === motionDetectionInterval) {
+        canvasFreqCtx.fillStyle = 'rgb(53, 53, 53)';
+        canvasFreqCtx.fillRect(0, 0, freqCanvasWidth, freqCanvasHeight);
+
+        let barWidth = (freqCanvasWidth / analyser.frequencyBinCount) * 2.5;
+        let barHeight;
+        let x = 0;
+
+        for (let i = 0; i < analyser.frequencyBinCount; i++) {
+            barHeight = arr[i];
+
+            canvasFreqCtx.fillStyle = 'rgb(' + ( barHeight + 150 ) + ', 250, 0)';
+            canvasFreqCtx.fillRect(x, freqCanvasHeight - barHeight / 2, barWidth, barHeight / 2);
+
+            x += barWidth + 1;
+        }
+    };
+
+    let __volumeLevel = (arr) => {
+        const volumeSensitivity = 3;
+
+        let average = getVolume(arr);
+        let pxVolume = average * volumeSensitivity;
+
+        canvasVolumeCtx.clearRect(0, 0, volumeCanvasWidth, volumeCanvasHeight);
+        canvasVolumeCtx.fillStyle = 'rgb(255, 250, 0)';
+        canvasVolumeCtx.fillRect(0, 0, pxVolume, volumeCanvasHeight);
+
+        //При превышении определенного уровня громкости - наступает эффект контузии.
+        const limitOfVolume = 300;
+
+        if (pxVolume > limitOfVolume && !convulsionsFlag) {
+            _gotConvulsions();
+        }
+    };
+
+    let __detectMotion = () => {
+        let diffPixels = 0;
+        loopCounter++;
+
+        if (prevImageArray.length !== 0 && loopCounter === motionDetectionInterval) {
             let imgDataArray = backCtx.getImageData(0, 0, w, h).data;
             let difference = 0;
 
