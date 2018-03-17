@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+
+    <title>Terminator eyes</title>
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <video autoplay muted id="video-for-canvas"></video>
+
+            <canvas id="canvas-for-video"></canvas>
+
+            <!--Визуализация громкости-->
+            <div class="volume-block">
+                <div class="volume-icon"></div>
+                <canvas id="visualizer-volume" width="300" height="40"></canvas>
+            </div>
+
+            <!--Визуализация звуковых частот (спектрограмма) -->
+            <div class="freq-block">
+                <div class="freq-icon"></div>
+                <canvas id="visualizer-freq" width="300" height="80"></canvas>
+            </div>
+
+            <!-- Случайный код -->
+            <div class="typewriter"></div>
+
+            <!-- Часть анимированного интерфейса -->
+            <svg class="loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 340">
+                <circle class="loader-circle" cx="170" cy="170" r="160" stroke="#367cff"/>
+                <circle class="loader-circle" cx="170" cy="170" r="135" stroke="#abff36"/>
+                <circle class="loader-circle" cx="170" cy="170" r="110" stroke="#fff"/>
+                <circle class="loader-circle" cx="170" cy="170" r="85" stroke="#fff980"/>
+            </svg>
+
+            <!-- Радар -->
+            <div class="radar">
+                <div class="pointer"></div>
+                <div class="shadow"></div>
+            </div>
+
+            <!-- Идентификатор движения -->
+            <div class="motion-identifier">
+                <div class="motion-icon"></div>
+                <div class="text">MOTION DETECTED!!!</div>
+            </div>
+
+            <!-- Превышение уровня громкости -->
+            <div class="loud-volume-identifier">It was very loud!!!</div>
+        </div>
+    </div>
+
+    <script src="js/scripts.js"></script>
+</body>
+</html>
