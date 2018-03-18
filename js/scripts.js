@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
         canvasVolumeCtx.fillRect(0, 0, pxVolume, volumeCanvasHeight);
 
         //При превышении определенного уровня громкости - наступает эффект контузии.
-        const limitOfVolume = 300;
+        const limitOfVolume = 250;
 
         if (pxVolume > limitOfVolume && !convulsionsFlag) {
             _gotConvulsions();
